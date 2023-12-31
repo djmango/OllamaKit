@@ -43,9 +43,114 @@ extension OllamaKit {
         do {
             _ = try await response.value
             
+            print("Ollama is running")
             return true
         } catch {
+            print("Ollama is not running")
+            let arguments = ["serve"]
+            runBinaryInBackground(withArguments: arguments)
             return false
+        }
+    }
+}
+
+extension OllamaKit {
+    
+
+    func downloadBinary(from url: URL, to destinationURL: URL, completion: @escaping (Error?) -> Void) {
+        let task = URLSession.shared.downloadTask(with: url) { tempLocalUrl, response, error in
+            if let tempLocalUrl = tempLocalUrl, error == nil {
+                do {
+                    try FileManager.default.copyItem(at: tempLocalUrl, to: destinationURL)
+                    completion(nil)
+                } catch {
+                    completion(error)
+                }
+            } else {
+                completion(error ?? NSError(domain: "DownloadError", code: 0, userInfo: nil))
+            }
+        }
+        task.resume()
+    }
+    
+    func runBinaryInBackground(withArguments args: [String]) {
+        // Download binary
+        let binaryDownloadURL = URL(string: "https://github.com/jmorganca/ollama/releases/download/v0.1.17/ollama-darwin")!
+        let destinationPath = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!.appendingPathComponent("ollama-darwin")
+
+        downloadBinary(from: binaryDownloadURL, to: destinationPath) { error in
+            if let error = error {
+                print("Download failed: \(error)")
+            } 
+            else {
+                print("Download successful, binary saved to: \(destinationPath.path)")
+                // Optionally, set the binary to be executable
+                do {
+                    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destinationPath.path)
+                } catch {
+                    print("Failed to set executable permissions: \(error)")
+                }
+                
+                // Grab path
+                let binaryName = "ollama-darwin"  // Replace with your binary's name
+
+                let fileManager = FileManager.default
+                guard let appSupportURL = try? fileManager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true) else {
+                    fatalError("Failed to find the application support directory")
+                }
+
+                let binaryURL = appSupportURL.appendingPathComponent(binaryName)
+
+                // Ensure the binary exists at this location
+                guard fileManager.fileExists(atPath: binaryURL.path) else {
+                    fatalError("Binary not found at \(binaryURL.path)")
+                }
+                
+                // Run in background
+                DispatchQueue.global(qos: .background).async {
+                    let process = Process()
+                    process.executableURL = binaryURL
+                    process.arguments = args
+                    
+                    // Create a pipe and attach it to process's standard output
+                    let outputPipe = Pipe()
+                    process.standardOutput = outputPipe
+                    
+                    // Create another pipe for standard error
+                    let errorPipe = Pipe()
+                    process.standardError = errorPipe
+                    
+                    do {
+                        try process.run()
+                        
+                        // Read the output data
+                        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                        if let outputString = String(data: outputData, encoding: .utf8) {
+                            DispatchQueue.main.async {
+                                print("Output: \(outputString)")
+                            }
+                        }
+                        
+                        // Read the error data
+                        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                        if let errorString = String(data: errorData, encoding: .utf8), !errorString.isEmpty {
+                            DispatchQueue.main.async {
+                                print("Error: \(errorString)")
+                            }
+                        }
+                        
+                        process.waitUntilExit()
+                        
+                        DispatchQueue.main.async {
+                            print("Process terminated with status: \(process.terminationStatus)")
+                        }
+                    } catch {
+                        DispatchQueue.main.async {
+                            print("Failed to start process: \(error.localizedDescription)")
+                        }
+                    }
+                }
+            }
         }
     }
 }
