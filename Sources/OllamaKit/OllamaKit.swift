@@ -8,6 +8,7 @@
 import Combine
 import Alamofire
 import Foundation
+import CoreServices
 
 /// A Swift library for interacting with the Ollama API.
 ///
@@ -56,50 +57,13 @@ extension OllamaKit {
 
 extension OllamaKit {
     
-    func getOllamaDirectory() -> (URL, URL)? {
-        // Get the user's home directory
-//        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
-//        
-//        // Create the path for the .ollama/models directory
-//        let modelsDirectory = homeDirectory.appendingPathComponent(".ollama/models")
-//        
-//        // Return absolute string
-//        return modelsDirectory.absoluteString
-        
-        if let appSupportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            // Now you have the path to the Application Support directory.
-            // You can create subdirectories or store files here.
-            let ollamaDir = appSupportDir.appendingPathComponent(".ollama")
-            // Create the directory if it doesn't exist.
-            do {
-                try FileManager.default.createDirectory(at: ollamaDir, withIntermediateDirectories: true, attributes: nil)
-                print("Ollama directory created at \(ollamaDir.path)")
-            } catch {
-                print("Failed to create Ollama directory: \(error.localizedDescription)")
-                return nil
-            }
-            
-            return (appSupportDir, ollamaDir)
-        }
-        else { return nil }
-    }
-    
     func runBinaryInBackground(withArguments args: [String]) {
         // Grab binary
         if let binaryPath = Bundle.main.path(forResource: "ollama-darwin", ofType: nil) {
             print("Ollama binary found")
             // Run in background
-            
-            let homeDir = FileManager.default.homeDirectoryForCurrentUser
-            let modelsDir = homeDir.appendingPathComponent(".ollama/models")
-            
             DispatchQueue.global(qos: .background).async {
                 let process = Process()
-//                process.environment = [
-//                    "HOME": homeDir.absoluteString,
-//                    "OLLAMA_MODELS": modelsDir.absoluteString
-//                ]
-                print(process.environment)
                 process.executableURL = URL(fileURLWithPath: binaryPath)
                 process.arguments = args
                 
@@ -115,7 +79,7 @@ extension OllamaKit {
                 do {
                     try process.run()
                     
-                    // Read the output data
+//                     Read the output data
                     let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
                     if let outputString = String(data: outputData, encoding: .utf8) {
                         DispatchQueue.main.async {
@@ -204,6 +168,9 @@ extension OllamaKit {
                             let response = try decoder.decode(OKChatResponse.self, from: jsonChunk)
                             subject.send(response)
                         } catch {
+                            print("FAILURE: \(jsonChunk)")
+                            let jsonObject = try JSONSerialization.jsonObject(with: jsonChunk, options: [])
+                            print(jsonObject)
                             subject.send(completion: .failure(error))
                             return
                         }
