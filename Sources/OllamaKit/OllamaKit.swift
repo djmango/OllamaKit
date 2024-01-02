@@ -9,24 +9,30 @@ import Combine
 import Alamofire
 import Foundation
 import CoreServices
+import Cocoa
 
 /// A Swift library for interacting with the Ollama API.
 ///
 /// `OllamaKit` simplifies the process of connecting Swift applications to the Ollama API, abstracting the complexities of network requests and data handling.
-public struct OllamaKit {
+///  Operates as a singleton, starts the Ollama API server process on init
+public class OllamaKit {
+    public static let shared = OllamaKit(baseURL:  URL(string: "http://localhost:11434")!)
+    
     private var router: OKRouter.Type
     private var decoder: JSONDecoder = .default
+    private var binaryProcess: Process?
     
     /// Initializes a new instance of `OllamaKit` with the specified base URL for the Ollama API.
     ///
     /// This initializer configures `OllamaKit` with a base URL, laying the groundwork for all network interactions with the Ollama API. It ensures that the library is properly set up to communicate with the API endpoints.
     ///
     /// - Parameter baseURL: The base URL to be used for Ollama API requests.
-    public init(baseURL: URL) {
+    private init(baseURL: URL) {
         let router = OKRouter.self
         router.baseURL = baseURL
         
         self.router = router
+        self.runBinaryInBackground(withArguments: ["serve"])
     }
 }
 
@@ -64,6 +70,7 @@ extension OllamaKit {
             // Run in background
             DispatchQueue.global(qos: .background).async {
                 let process = Process()
+                self.binaryProcess = process
                 process.executableURL = URL(fileURLWithPath: binaryPath)
                 process.arguments = args
                 
@@ -79,7 +86,7 @@ extension OllamaKit {
                 do {
                     try process.run()
                     
-//                     Read the output data
+                    // Read the output data
                     let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
                     if let outputString = String(data: outputData, encoding: .utf8) {
                         DispatchQueue.main.async {
@@ -110,6 +117,11 @@ extension OllamaKit {
             print("Failed to locate binary in app bundle.")
         }
     }
+    
+    public func terminateBinaryProcess() {
+       // Terminate the binary process
+       binaryProcess?.terminate()
+   }
 }
 
 extension OllamaKit {
@@ -163,9 +175,9 @@ extension OllamaKit {
                     buffer.append(data)
                     
                     // Try to decode buffered data
-                    while let jsonChunk = extractNextJSONObject(from: &buffer) {
+                    while let jsonChunk = self.extractNextJSONObject(from: &buffer) {
                         do {
-                            let response = try decoder.decode(OKChatResponse.self, from: jsonChunk)
+                            let response = try self.decoder.decode(OKChatResponse.self, from: jsonChunk)
                             subject.send(response)
                         } catch {
                             print("FAILURE: \(jsonChunk)")
