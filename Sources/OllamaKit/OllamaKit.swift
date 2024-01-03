@@ -34,8 +34,6 @@ public class OllamaKit {
         self.router = router
         
         // Manage Ollama lifecycle
-        // If there already is a running instance of Ollama, we will have to kill it
-        killProcessUsingPort(port: 11434)
         self.runBinaryInBackground(withArguments: ["serve"])
     }
 }
@@ -65,8 +63,13 @@ extension OllamaKit {
 }
 
 extension OllamaKit {
-    
+    ///  Starts the Ollama API in a background thread via the ollama-darwin binary bundled in the parent app
+    ///  Saves a reference to the process to manage later
+    ///  Will start by clearing out any processes using the desired port
     func runBinaryInBackground(withArguments args: [String]) {
+        // If there already is a running instance of Ollama, we will have to kill it
+        killProcessUsingPort(port: 11434)
+        
         // Grab binary
         if let binaryPath = Bundle.main.path(forResource: "ollama-darwin", ofType: nil) {
             print("Ollama binary found")
