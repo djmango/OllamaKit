@@ -32,6 +32,10 @@ public class OllamaKit {
         router.baseURL = baseURL
         
         self.router = router
+        
+        // Manage Ollama lifecycle
+        // If there already is a running instance of Ollama, we will have to kill it
+        killProcessUsingPort(port: 11434)
         self.runBinaryInBackground(withArguments: ["serve"])
     }
 }
@@ -54,8 +58,7 @@ extension OllamaKit {
             return true
         } catch {
             print("Ollama is not running")
-            let arguments = ["serve"]
-            runBinaryInBackground(withArguments: arguments)
+            runBinaryInBackground(withArguments: ["serve"])
             return false
         }
     }
