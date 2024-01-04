@@ -128,6 +128,34 @@ extension OllamaKit {
        // Terminate the binary process
        binaryProcess?.terminate()
    }
+    
+    /// Restarts the Ollama binary process and waits for the API to become reachable.
+    ///
+    /// - Returns: `true` if the API becomes reachable within 5 seconds, `false` otherwise.
+    public func restartBinaryAndWaitForAPI() async -> Bool {
+        // Terminate existing binary process
+        terminateBinaryProcess()
+
+        // Restart the binary process
+        runBinaryInBackground(withArguments: ["serve"])
+
+        // Set a timeout for the API to become reachable
+        let timeoutSeconds = 5
+        let deadline = DispatchTime.now() + .seconds(timeoutSeconds)
+        
+        // Check for API reachability within the timeout period
+        while DispatchTime.now() < deadline {
+            if await self.reachable() {
+                print("API is reachable after restart.")
+                return true
+            }
+            // Wait for a short period before trying again
+            try? await Task.sleep(nanoseconds: 500_000_000) // Sleep for 0.5 second
+        }
+        
+        print("Failed to reach API within \(timeoutSeconds) seconds after restart.")
+        return false
+    }
 }
 
 extension OllamaKit {
@@ -166,7 +194,7 @@ extension OllamaKit {
     ///
     /// - Parameter data: The `OKChatRequestData` used to initiate the streaming from the Ollama API.
     /// - Returns: An `AnyPublisher` emitting `OKGenerateResponse` and `Error`, representing the live stream of responses from the Ollama API.
-    public func chat(data: OkChatRequestData) -> AnyPublisher<OKChatResponse, Error> {
+    public func chat(data: OKChatRequestData) -> AnyPublisher<OKChatResponse, Error> {
         let subject = PassthroughSubject<OKChatResponse, Error>()
         let request = AF.streamRequest(router.chat(data: data)).validate()
     
