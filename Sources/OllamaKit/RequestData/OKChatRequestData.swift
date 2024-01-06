@@ -29,6 +29,7 @@ public struct OKChatRequestData: Encodable {
 public struct ChatMessage: Encodable {
     public var role: String
     public var content: String
+    public var images: [String]?
     
     public init(role: String, content: String) {
         self.role = role

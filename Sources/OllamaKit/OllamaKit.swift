@@ -125,8 +125,31 @@ extension OllamaKit {
     }
     
     public func terminateBinaryProcess() {
-       // Terminate the binary process
-       binaryProcess?.terminate()
+        // Terminate the binary process
+        binaryProcess?.terminate()
+        // Kill orphaned processes
+        let process = Process()
+           let pipe = Pipe()
+
+           process.standardOutput = pipe
+           process.standardError = pipe
+
+           // Define the command to run
+           process.executableURL = URL(fileURLWithPath: "/bin/bash")
+           process.arguments = ["-c", "ps aux | grep ollama-runner | grep -v grep | awk '{print $2}' | xargs kill"]
+
+           do {
+               try process.run()
+               process.waitUntilExit()
+
+               // Read and print the output
+               let data = pipe.fileHandleForReading.readDataToEndOfFile()
+               if let output = String(data: data, encoding: .utf8) {
+                   print(output)
+               }
+           } catch {
+               print("Failed to execute command: \(error)")
+           }
    }
     
     /// Restarts the Ollama binary process and waits for the API to become reachable.
