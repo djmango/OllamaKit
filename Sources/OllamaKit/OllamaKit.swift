@@ -359,7 +359,7 @@ public extension OllamaKit {
     /// - Returns: An `AnyPublisher` emitting `OkPullModelResponse` and `Error`, representing the live stream of responses from the Ollama API.
     func pullModel(data: OKPullModelRequestData) -> AnyPublisher<OkPullModelResponse, Error> {
         let subject = PassthroughSubject<OKPullModelRequestData, Error>()
-        let request = AF.streamRequest(router.chat(data: data)).validate()
+        let request = AF.streamRequest(router.pull(data: data)).validate()
 
         var buffer = Data()
 
