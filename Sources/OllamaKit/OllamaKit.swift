@@ -357,9 +357,9 @@ public extension OllamaKit {
     ///
     /// - Parameter data: The `OKPullModelRequestData` used to initiate the streaming from the Ollama API.
     /// - Returns: An `AnyPublisher` emitting `OkPullModelResponse` and `Error`, representing the live stream of responses from the Ollama API.
-    func pullModel(data: OKPullModelRequestData) -> AnyPublisher<OkPullModelResponse, Error> {
-        let subject = PassthroughSubject<OKPullModelRequestData, Error>()
-        let request = AF.streamRequest(router.pull(data: data)).validate()
+    func pullModel(data: OKPullModelRequestData) -> AnyPublisher<OKModelPullResponse, Error> {
+        let subject = PassthroughSubject<OKModelPullResponse, Error>()
+        let request = AF.streamRequest(router.pullModel(data: data)).validate()
 
         var buffer = Data()
 
@@ -374,7 +374,7 @@ public extension OllamaKit {
                     // Try to decode buffered data
                     while let jsonChunk = self.extractNextJSONObject(from: &buffer) {
                         do {
-                            let response = try self.decoder.decode(OKChatResponse.self, from: jsonChunk)
+                            let response = try self.decoder.decode(OKModelPullResponse.self, from: jsonChunk)
                             subject.send(response)
                         } catch {
                             print("FAILURE: \(jsonChunk)")
