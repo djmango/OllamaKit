@@ -134,7 +134,7 @@ public extension OllamaKit {
 
         // Define the command to run
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = ["-c", "ps aux | grep ollama-runner | grep -v grep | awk '{print $2}' | xargs kill"]
+        process.arguments = ["-c", "ps aux | grep ollama-darwin | grep -v grep | awk '{print $2}' | xargs kill"]
 
         do {
             try process.run()
