@@ -11,11 +11,14 @@ import Foundation
 ///
 /// It includes the model name, prompt, and other optional parameters that tailor the generation process, such as format and context.
 public struct OKChatRequestData: Encodable {
+    /// The name of the model to use.
     public let model: String
+    /// The chat history (prompt) to use for generation.
     public let messages: [ChatMessage]
     public var format: Format?
     public var options: Options?
     public var template: String?
+    /// Whether to stream the response or not. Defaults to true.
     public var stream: Bool = true
 
     public init(model: String, messages: [ChatMessage]) {
@@ -25,13 +28,17 @@ public struct OKChatRequestData: Encodable {
 }
 
 public struct ChatMessage: Encodable {
+    /// The role of the message sender. Can be either "user", "assistant", or "system".
     public var role: String
+    /// The message content.
     public var content: String
+    /// A list of base64-encoded images.
     public var images: [String]?
 
-    public init(role: String, content: String) {
+    public init(role: String, content: String, images: [String]? = nil) {
         self.role = role
         self.content = content
+        self.images = images
     }
 }
 
