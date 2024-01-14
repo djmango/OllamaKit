@@ -18,7 +18,7 @@ public struct OKGenerateRequestData: Encodable {
     public var template: String?
     public var options: Options?
     public var context: [Int]?
-    public let stream: Bool?
+    public var stream: Bool = true
     public var raw: Bool?
 
     public init(model: String, prompt: String) {

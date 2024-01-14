@@ -16,7 +16,7 @@ public struct OKChatRequestData: Encodable {
     public var format: Format?
     public var options: Options?
     public var template: String?
-    public let stream: Bool?
+    public var stream: Bool = true
 
     public init(model: String, messages: [ChatMessage]) {
         self.model = model
