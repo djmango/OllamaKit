@@ -11,8 +11,6 @@ import Foundation
 ///
 /// It includes the model name, prompt, and other optional parameters that tailor the generation process, such as format and context.
 public struct OKGenerateRequestData: Encodable {
-    private let stream: Bool
-
     public let model: String
     public let prompt: String
     public var format: Format?
@@ -20,10 +18,10 @@ public struct OKGenerateRequestData: Encodable {
     public var template: String?
     public var options: Options?
     public var context: [Int]?
+    public let stream: Bool?
     public var raw: Bool?
-    
+
     public init(model: String, prompt: String) {
-        self.stream = true
         self.model = model
         self.prompt = prompt
     }
