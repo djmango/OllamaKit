@@ -22,6 +22,8 @@ public class OllamaKit {
     private var decoder: JSONDecoder = .default
     private var binaryProcess: Process?
 
+    public var lastInferenceTime: Date?
+
     /// Initializes a new instance of `OllamaKit` with the specified base URL for the Ollama API.
     ///
     /// This initializer configures `OllamaKit` with a base URL, laying the groundwork for all network interactions with the Ollama API. It ensures that the library is properly set up to communicate with the API endpoints.
@@ -66,7 +68,7 @@ public extension OllamaKit {
     ///  Will start by clearing out any processes using the desired port
     internal func runBinaryInBackground(withArguments args: [String]) {
         // If there already is a running instance of Ollama, we will have to kill it
-        killProcessUsingPort(port: 11434)
+        terminateBinaryProcess()
 
         // Grab binary
         if let binaryPath = Bundle.main.path(forResource: "ollama-darwin", ofType: nil) {
@@ -125,6 +127,8 @@ public extension OllamaKit {
     func terminateBinaryProcess() {
         // Terminate the binary process
         binaryProcess?.terminate()
+        // If there already is a running instance of Ollama, we will have to kill it
+        killProcessUsingPort(port: 11434)
         // Kill orphaned processes
         let process = Process()
         let pipe = Pipe()
@@ -204,6 +208,7 @@ public extension OllamaKit {
             }
         }
 
+        lastInferenceTime = Date()
         return subject.eraseToAnyPublisher()
     }
 }
@@ -252,6 +257,7 @@ extension OllamaKit {
             }
         }
 
+        lastInferenceTime = Date()
         return subject.eraseToAnyPublisher()
     }
 
