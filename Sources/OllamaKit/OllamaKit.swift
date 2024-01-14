@@ -52,10 +52,8 @@ public extension OllamaKit {
         do {
             _ = try await response.value
 
-            print("Ollama is running")
             return true
         } catch {
-            print("Ollama is not running")
             runBinaryInBackground(withArguments: ["serve"])
             return false
         }
