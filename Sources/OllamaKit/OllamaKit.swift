@@ -23,6 +23,7 @@ public class OllamaKit {
     private var binaryProcess: Process?
 
     public var lastInferenceTime: Date?
+    public var lastInferenceModel: String?
 
     /// Initializes a new instance of `OllamaKit` with the specified base URL for the Ollama API.
     ///
@@ -126,11 +127,6 @@ public extension OllamaKit {
 
     func terminateBinaryProcess() {
         // Terminate the binary process
-        // First check if it's running
-        // if binaryProcess?.isRunning ?? false {
-        //     print("Terminating process")
-        //     binaryProcess?.terminate()
-        // }
 
         // If there already is a running instance of Ollama, we will have to kill it
         killProcessUsingPort(port: 11434)
@@ -214,6 +210,7 @@ public extension OllamaKit {
         }
 
         lastInferenceTime = Date()
+        lastInferenceModel = data.model
         return subject.eraseToAnyPublisher()
     }
 }
@@ -263,6 +260,7 @@ extension OllamaKit {
         }
 
         lastInferenceTime = Date()
+        lastInferenceModel = data.model
         return subject.eraseToAnyPublisher()
     }
 
