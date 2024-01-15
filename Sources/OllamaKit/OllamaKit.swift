@@ -126,11 +126,12 @@ public extension OllamaKit {
 
     func terminateBinaryProcess() {
         // Terminate the binary process
-        do {
-            try binaryProcess?.terminate()
-        } catch {
-            print("Failed to terminate process: \(error.localizedDescription)")
-        }
+        // First check if it's running
+        // if binaryProcess?.isRunning ?? false {
+        //     print("Terminating process")
+        //     binaryProcess?.terminate()
+        // }
+
         // If there already is a running instance of Ollama, we will have to kill it
         killProcessUsingPort(port: 11434)
         // Kill orphaned processes
