@@ -71,11 +71,6 @@ public extension OllamaKit {
         // If there already is a running instance of Ollama, we will have to kill it
         terminateBinaryProcess()
 
-        guard let modelsPath = Bundle.main.path(forResource: "Ollama", ofType: nil) else {
-            print("Failed to locate models in app bundle.")
-            return
-        }
-
         // Grab binary
         if let binaryPath = Bundle.main.path(forResource: "ollama-darwin", ofType: nil) {
             print("Ollama binary found")
@@ -88,9 +83,6 @@ public extension OllamaKit {
                 if process.environment == nil {
                     process.environment = ProcessInfo.processInfo.environment
                 }
-                process.environment?["OLLAMA_MODELS"] = modelsPath
-                // process.environment?["HOME"] = modelsPath
-                print("Running Ollama with models at \(modelsPath)")
 
                 // Create a pipe and attach it to process's standard output
                 let outputPipe = Pipe()
