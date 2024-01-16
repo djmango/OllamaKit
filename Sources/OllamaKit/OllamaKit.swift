@@ -10,14 +10,18 @@ import Cocoa
 import Combine
 import CoreServices
 import Foundation
+import os
 
 /// A Swift library for interacting with the Ollama API.
 ///
 /// `OllamaKit` simplifies the process of connecting Swift applications to the Ollama API, abstracting the complexities of network requests and data handling.
 ///  Operates as a singleton, starts the Ollama API server process on init
 public class OllamaKit {
-    public static let shared = OllamaKit(baseURL: URL(string: "http://localhost:11434")!)
+    private let logger = Logger(subsystem: "OllamaKit", category: "OllamaKit")
 
+    public static let shared = OllamaKit()
+
+    public var baseURL: URL
     private var router: OKRouter.Type
     private var decoder: JSONDecoder = .default
     private var binaryProcess: Process?
@@ -30,14 +34,10 @@ public class OllamaKit {
     /// This initializer configures `OllamaKit` with a base URL, laying the groundwork for all network interactions with the Ollama API. It ensures that the library is properly set up to communicate with the API endpoints.
     ///
     /// - Parameter baseURL: The base URL to be used for Ollama API requests.
-    private init(baseURL: URL) {
+    private init(baseURL: URL = URL(string: "http://localhost:11434")!) {
         let router = OKRouter.self
-        router.baseURL = baseURL
-
+        self.baseURL = baseURL
         self.router = router
-
-        // Manage Ollama lifecycle
-        runBinaryInBackground(withArguments: ["serve"])
     }
 }
 
@@ -57,7 +57,6 @@ public extension OllamaKit {
 
             return true
         } catch {
-            runBinaryInBackground(withArguments: ["serve"])
             return false
         }
     }
@@ -67,22 +66,27 @@ public extension OllamaKit {
     ///  Starts the Ollama API in a background thread via the ollama-darwin binary bundled in the parent app
     ///  Saves a reference to the process to manage later
     ///  Will start by clearing out any processes using the desired port
-    internal func runBinaryInBackground(withArguments args: [String]) {
-        // If there already is a running instance of Ollama, we will have to kill it
-        terminateBinaryProcess()
+    func runBinaryInBackground(withArguments args: [String], forceKill: Bool = false) {
+        if forceKill {
+            // If there already is a running instance of Ollama, we will have to kill it
+            terminateBinaryProcess()
+        } else {
+            // Check if there is a running instance of Ollama
+            if let pid = getPID(usingPort: 11434) {
+                logger.debug("Ollama is already running with PID \(pid)")
+                return
+            }
+        }
 
         // Grab binary
         if let binaryPath = Bundle.main.path(forResource: "ollama-darwin", ofType: nil) {
-            print("Ollama binary found")
+            logger.debug("Ollama binary found")
             // Run in background
             DispatchQueue.global(qos: .background).async {
                 let process = Process()
                 self.binaryProcess = process
                 process.executableURL = URL(fileURLWithPath: binaryPath)
                 process.arguments = args
-                if process.environment == nil {
-                    process.environment = ProcessInfo.processInfo.environment
-                }
 
                 // Create a pipe and attach it to process's standard output
                 let outputPipe = Pipe()
@@ -92,7 +96,7 @@ public extension OllamaKit {
                 let errorPipe = Pipe()
                 process.standardError = errorPipe
 
-                print("Running Ollama")
+                self.logger.debug("Running Ollama")
                 do {
                     try process.run()
 
@@ -100,7 +104,7 @@ public extension OllamaKit {
                     let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
                     if let outputString = String(data: outputData, encoding: .utf8) {
                         DispatchQueue.main.async {
-                            print("Output: \(outputString)")
+                            self.logger.debug("Output: \(outputString)")
                         }
                     }
 
@@ -108,23 +112,23 @@ public extension OllamaKit {
                     let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
                     if let errorString = String(data: errorData, encoding: .utf8), !errorString.isEmpty {
                         DispatchQueue.main.async {
-                            print("Error: \(errorString)")
+                            self.logger.error("Error: \(errorString)")
                         }
                     }
 
                     process.waitUntilExit()
 
                     DispatchQueue.main.async {
-                        print("Process terminated with status: \(process.terminationStatus)")
+                        self.logger.debug("Process terminated with status: \(process.terminationStatus)")
                     }
                 } catch {
                     DispatchQueue.main.async {
-                        print("Failed to start process: \(error.localizedDescription)")
+                        self.logger.error("Failed to start process: \(error.localizedDescription)")
                     }
                 }
             }
         } else {
-            print("Failed to locate binary in app bundle.")
+            logger.error("Failed to locate binary in app bundle.")
         }
     }
 
@@ -132,7 +136,7 @@ public extension OllamaKit {
         // Terminate the binary process
 
         // If there already is a running instance of Ollama, we will have to kill it
-        killProcessUsingPort(port: 11434)
+        _ = killProcess(usingPort: 11434)
         // Kill orphaned processes
         let process = Process()
         let pipe = Pipe()
@@ -151,23 +155,29 @@ public extension OllamaKit {
             // Read and print the output
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
-                print(output)
+                logger.debug("Kill output : \(output)")
             }
         } catch {
-            print("Failed to execute command: \(error)")
+            logger.error("Failed to execute command: \(error)")
+        }
+    }
+
+    func restart(minInterval: TimeInterval = 90) {
+        // Restart the binary if it has been more than minInterval seconds since the last message
+        let lastInferenceTime = OllamaKit.shared.lastInferenceTime ?? Date.distantPast
+        if lastInferenceTime < Date.now.addingTimeInterval(-minInterval) {
+            // Terminate and restart the binary process
+            logger.debug("Restarting Ollama.")
+            runBinaryInBackground(withArguments: ["serve"], forceKill: true)
         }
     }
 
     /// Restarts the Ollama binary process and waits for the API to become reachable.
-    ///
-    /// - Returns: `true` if the API becomes reachable within 5 seconds, `false` otherwise.
-    func restartBinaryAndWaitForAPI() async -> Bool {
-        // Terminate existing binary process
-        terminateBinaryProcess()
-
-        // Restart the binary process
-        runBinaryInBackground(withArguments: ["serve"])
-
+    /// Asynchronous version
+    func waitForAPI(restart: Bool = false) async throws {
+        if restart {
+            self.restart(minInterval: 0)
+        }
         // Set a timeout for the API to become reachable
         let timeoutSeconds = 5
         let deadline = DispatchTime.now() + .seconds(timeoutSeconds)
@@ -175,15 +185,15 @@ public extension OllamaKit {
         // Check for API reachability within the timeout period
         while DispatchTime.now() < deadline {
             if await reachable() {
-                print("API is reachable after restart.")
-                return true
+                logger.debug("API is reachable after waiting \(DispatchTime.now().uptimeNanoseconds / 1_000_000) ms.")
+                return
             }
             // Wait for a short period before trying again
             try? await Task.sleep(nanoseconds: 500_000_000) // Sleep for 0.5 second
         }
 
-        print("Failed to reach API within \(timeoutSeconds) seconds after restart.")
-        return false
+        logger.error("Failed to reach API within \(timeoutSeconds) seconds after restart.")
+        throw OllamaError.apiNotReachable
     }
 }
 
@@ -219,6 +229,26 @@ public extension OllamaKit {
 }
 
 extension OllamaKit {
+    private func shouldRestartInference(data: OKChatRequestData) -> Bool {
+        // Logic to determine if restart is necessary
+        logger.debug("Last inference time: \(String(describing: OllamaKit.shared.lastInferenceTime))")
+        logger.debug("Last inference model: \(String(describing: OllamaKit.shared.lastInferenceModel))")
+        if let lastInferenceTime = OllamaKit.shared.lastInferenceTime,
+           lastInferenceTime < Date.now.addingTimeInterval(-90)
+        {
+            logger.debug("Restarting Ollama because it has been more than 90 seconds since the last message.")
+            return true
+        } else if let lastInferenceModel = OllamaKit.shared.lastInferenceModel,
+                  lastInferenceModel != data.model
+        {
+            logger.debug("Restarting Ollama because the model has changed.")
+            return true
+        }
+        return false
+    }
+}
+
+extension OllamaKit {
     /// Establishes a Combine publisher for streaming responses from the Ollama API, based on the provided data.
     ///
     /// This method sets up a streaming connection using the Combine framework, allowing for real-time data handling as the responses are generated by the Ollama API. When proxying stream some events are combined into a single response. To account for this a buffer is implemented to to separate JSON objects.
@@ -226,45 +256,62 @@ extension OllamaKit {
     /// - Parameter data: The `OKChatRequestData` used to initiate the streaming from the Ollama API.
     /// - Returns: An `AnyPublisher` emitting `OKGenerateResponse` and `Error`, representing the live stream of responses from the Ollama API.
     public func chat(data: OKChatRequestData) -> AnyPublisher<OKChatResponse, Error> {
-        let subject = PassthroughSubject<OKChatResponse, Error>()
-        let request = AF.streamRequest(router.chat(data: data)).validate()
-
-        var buffer = Data()
-
-        request.responseStream { stream in
-            switch stream.event {
-            case let .stream(result):
-                switch result {
-                case let .success(data):
-                    // Append the new data to the buffer
-                    buffer.append(data)
-
-                    // Try to decode buffered data
-                    while let jsonChunk = self.extractNextJSONObject(from: &buffer) {
-                        do {
-                            let response = try self.decoder.decode(OKChatResponse.self, from: jsonChunk)
-                            subject.send(response)
-                        } catch {
-                            print("FAILURE: \(jsonChunk)")
-                            let jsonObject = try JSONSerialization.jsonObject(with: jsonChunk, options: [])
-                            print(jsonObject)
-                            subject.send(completion: .failure(error))
-                            return
-                        }
-                    }
-
-                case let .failure(error):
-                    subject.send(completion: .failure(error))
+        // Step 1: Create a future that encapsulates the waitForAPI logic
+        let waitForAPIFuture = Future<Void, Error> { promise in
+            Task {
+                do {
+                    // Restart the binary if it has been a while since the last message or if the model has changed
+                    try await self.waitForAPI(restart: self.shouldRestartInference(data: data))
+                    promise(.success(()))
+                } catch {
+                    promise(.failure(error))
                 }
-
-            case .complete:
-                subject.send(completion: .finished)
             }
         }
 
-        lastInferenceTime = Date()
-        lastInferenceModel = data.model
-        return subject.eraseToAnyPublisher()
+        // Step 2: Use flatMap to chain the future with the existing publisher logic
+        return waitForAPIFuture
+            .flatMap { _ -> AnyPublisher<OKChatResponse, Error> in
+
+                let subject = PassthroughSubject<OKChatResponse, Error>()
+                let request = AF.streamRequest(self.router.chat(data: data)).validate()
+
+                var buffer = Data()
+
+                self.lastInferenceTime = Date()
+                self.lastInferenceModel = data.model
+
+                request.responseStream { stream in
+                    switch stream.event {
+                    case let .stream(result):
+                        switch result {
+                        case let .success(data):
+                            // Append the new data to the buffer
+                            buffer.append(data)
+
+                            // Try to decode buffered data
+                            while let jsonChunk = self.extractNextJSONObject(from: &buffer) {
+                                do {
+                                    let response = try self.decoder.decode(OKChatResponse.self, from: jsonChunk)
+                                    subject.send(response)
+                                } catch {
+                                    self.logger.error("FAILURE: \(jsonChunk)")
+                                    subject.send(completion: .failure(error))
+                                    return
+                                }
+                            }
+
+                        case let .failure(error):
+                            subject.send(completion: .failure(error))
+                        }
+
+                    case .complete:
+                        subject.send(completion: .finished)
+                    }
+                }
+                return subject.eraseToAnyPublisher()
+            }
+            .eraseToAnyPublisher()
     }
 
     func extractNextJSONObject(from buffer: inout Data) -> Data? {
@@ -323,9 +370,7 @@ public extension OllamaKit {
         let request = AF.request(router.models).validate()
         let response = request.serializingDecodable(OKModelResponse.self, decoder: decoder)
 
-        let val = try await response.value
-        print(val)
-        return val
+        return try await response.value
     }
 }
 
@@ -387,9 +432,7 @@ public extension OllamaKit {
                             let response = try self.decoder.decode(OKModelPullResponse.self, from: jsonChunk)
                             subject.send(response)
                         } catch {
-                            print("FAILURE: \(jsonChunk)")
-                            let jsonObject = try JSONSerialization.jsonObject(with: jsonChunk, options: [])
-                            print(jsonObject)
+                            self.logger.error("FAILURE: \(jsonChunk)")
                             subject.send(completion: .failure(error))
                             return
                         }

@@ -8,9 +8,7 @@
 import Alamofire
 import Foundation
 
-internal enum OKRouter {
-    static var baseURL = URL(string: "http://localhost:11434")!
-    
+enum OKRouter {
     case root
     case models
     case modelInfo(data: OKModelInfoRequestData)
@@ -19,8 +17,8 @@ internal enum OKRouter {
     case copyModel(data: OKCopyModelRequestData)
     case pullModel(data: OKPullModelRequestData)
     case deleteModel(data: OKDeleteModelRequestData)
-    
-    internal var path: String {
+
+    var path: String {
         switch self {
         case .root:
             return "/"
@@ -40,8 +38,8 @@ internal enum OKRouter {
             return "/api/delete"
         }
     }
-    
-    internal var method: HTTPMethod {
+
+    var method: HTTPMethod {
         switch self {
         case .root:
             return .head
@@ -61,36 +59,36 @@ internal enum OKRouter {
             return .delete
         }
     }
-    
-    internal var headers: HTTPHeaders {
+
+    var headers: HTTPHeaders {
         ["Content-Type": "application/json"]
     }
 }
 
 extension OKRouter: URLRequestConvertible {
     func asURLRequest() throws -> URLRequest {
-        let url = OKRouter.baseURL.appendingPathComponent(path)
+        let url = OllamaKit.shared.baseURL.appendingPathComponent(path)
         var request = URLRequest(url: url)
         request.method = method
         request.headers = headers
-        
+
         switch self {
-        case .modelInfo(let data):
+        case let .modelInfo(data):
             request.httpBody = try JSONEncoder.default.encode(data)
-        case .generate(let data):
+        case let .generate(data):
             request.httpBody = try JSONEncoder.default.encode(data)
-        case .chat(let data):
+        case let .chat(data):
             request.httpBody = try JSONEncoder.default.encode(data)
-        case .copyModel(let data):
+        case let .copyModel(data):
             request.httpBody = try JSONEncoder.default.encode(data)
-        case .pullModel(let data):
+        case let .pullModel(data):
             request.httpBody = try JSONEncoder.default.encode(data)
-        case .deleteModel(let data):
+        case let .deleteModel(data):
             request.httpBody = try JSONEncoder.default.encode(data)
         default:
             break
         }
-        
+
         return request
     }
 }
