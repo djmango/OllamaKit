@@ -174,22 +174,25 @@ public extension OllamaKit {
 
     /// Restarts the Ollama binary process and waits for the API to become reachable.
     /// Asynchronous version
-    func waitForAPI(restart: Bool = false) async throws {
+    func waitForAPI(restart: Bool = false, timeoutSeconds: Int = 5) async throws {
         if restart {
             self.restart(minInterval: 0)
         }
         // Set a timeout for the API to become reachable
-        let timeoutSeconds = 5
+        let start = DispatchTime.now()
         let deadline = DispatchTime.now() + .seconds(timeoutSeconds)
 
         // Check for API reachability within the timeout period
         while DispatchTime.now() < deadline {
+            let elapsedNanoseconds = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+            let elapsedSeconds = (Double(elapsedNanoseconds) / 1_000_000_000)
+            let formattedElapsedSeconds = String(format: "%.3f", elapsedSeconds)
             if await reachable() {
-                logger.debug("API is reachable after waiting \(DispatchTime.now().uptimeNanoseconds / 1_000_000) ms.")
+                logger.debug("API is reachable after waiting \(formattedElapsedSeconds) seconds.")
                 return
             }
             // Wait for a short period before trying again
-            try? await Task.sleep(nanoseconds: 500_000_000) // Sleep for 0.5 second
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
 
         logger.error("Failed to reach API within \(timeoutSeconds) seconds after restart.")
