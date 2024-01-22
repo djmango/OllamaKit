@@ -26,7 +26,7 @@ public class OllamaKit {
     private var decoder: JSONDecoder = .default
     private var binaryProcess: Process?
 
-    public var lastInferenceTime: Date?
+    public var lastInferenceTime: Date = .now
     public var lastInferenceModel: String?
 
     /// Initializes a new instance of `OllamaKit` with the specified base URL for the Ollama API.
@@ -164,8 +164,7 @@ public extension OllamaKit {
 
     func restart(minInterval: TimeInterval = 90) {
         // Restart the binary if it has been more than minInterval seconds since the last message
-        let lastInferenceTime = OllamaKit.shared.lastInferenceTime ?? Date.distantPast
-        if lastInferenceTime < Date.now.addingTimeInterval(-minInterval) {
+        if OllamaKit.shared.lastInferenceTime < Date.now.addingTimeInterval(-minInterval) {
             // Terminate and restart the binary process
             logger.debug("Restarting Ollama.")
             runBinaryInBackground(withArguments: ["serve"], forceKill: true)
@@ -236,9 +235,7 @@ extension OllamaKit {
         // Logic to determine if restart is necessary
         logger.debug("Last inference time: \(String(describing: OllamaKit.shared.lastInferenceTime))")
         logger.debug("Last inference model: \(String(describing: OllamaKit.shared.lastInferenceModel))")
-        if let lastInferenceTime = OllamaKit.shared.lastInferenceTime,
-           lastInferenceTime < Date.now.addingTimeInterval(-90)
-        {
+        if OllamaKit.shared.lastInferenceTime < Date.now.addingTimeInterval(-90) {
             logger.debug("Restarting Ollama because it has been more than 90 seconds since the last message.")
             return true
         } else if let lastInferenceModel = OllamaKit.shared.lastInferenceModel,
