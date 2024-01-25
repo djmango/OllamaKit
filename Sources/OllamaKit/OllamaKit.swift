@@ -162,7 +162,7 @@ public extension OllamaKit {
         }
     }
 
-    func restart(minInterval: TimeInterval = 90) {
+    func restart(minInterval: TimeInterval = 30) {
         // Restart the binary if it has been more than minInterval seconds since the last message
         if OllamaKit.shared.lastInferenceTime < Date.now.addingTimeInterval(-minInterval) {
             // Terminate and restart the binary process
@@ -235,8 +235,8 @@ extension OllamaKit {
         // Logic to determine if restart is necessary
         logger.debug("Last inference time: \(String(describing: OllamaKit.shared.lastInferenceTime))")
         logger.debug("Last inference model: \(String(describing: OllamaKit.shared.lastInferenceModel))")
-        if OllamaKit.shared.lastInferenceTime < Date.now.addingTimeInterval(-90) {
-            logger.debug("Restarting Ollama because it has been more than 90 seconds since the last message.")
+        if OllamaKit.shared.lastInferenceTime < Date.now.addingTimeInterval(-30) {
+            logger.debug("Restarting Ollama because it has been more than 30 seconds since the last message.")
             return true
         } else if let lastInferenceModel = OllamaKit.shared.lastInferenceModel,
                   lastInferenceModel != data.model
