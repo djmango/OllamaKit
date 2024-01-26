@@ -231,7 +231,7 @@ public extension OllamaKit {
 }
 
 extension OllamaKit {
-    private func shouldRestartInference(data: OKChatRequestData) -> Bool {
+    private func shouldRestartInference(data: OKChatRequestData? = nil) -> Bool {
         // Logic to determine if restart is necessary
         logger.debug("Last inference time: \(String(describing: OllamaKit.shared.lastInferenceTime))")
         logger.debug("Last inference model: \(String(describing: OllamaKit.shared.lastInferenceModel))")
@@ -239,7 +239,7 @@ extension OllamaKit {
             logger.debug("Restarting Ollama because it has been more than 30 seconds since the last message.")
             return true
         } else if let lastInferenceModel = OllamaKit.shared.lastInferenceModel,
-                  lastInferenceModel != data.model
+                  lastInferenceModel != data?.model
         {
             logger.debug("Restarting Ollama because the model has changed.")
             return true
